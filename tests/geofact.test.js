@@ -1,0 +1,40 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const app=fs.readFileSync('app.js','utf8');
+const html=fs.readFileSync('index.html','utf8');
+const countries=JSON.parse(html.match(/const countries=(\[.*?\]);\nconst CAPITALS=/s)[1]);
+const list=name=>app.match(new RegExp(`const ${name}='([^']+)'`))[1].split(' ');
+const easy=list('EASY'),hard=list('HARD'),medium=countries.map(c=>c.iso).filter(iso=>!easy.includes(iso)&&!hard.includes(iso));
+
+assert.deepEqual([easy.length,medium.length,hard.length],[50,80,65]);
+const assigned=[...easy,...medium,...hard];
+assert.equal(assigned.length,195);
+assert.equal(new Set(assigned).size,195);
+assert.deepEqual(new Set(assigned),new Set(countries.map(c=>c.iso)));
+for(const iso of ['FRA','ESP','ITA','GBR','USA','CAN','MEX','BRA','ARG','CHN','IND','JPN','RUS','AUS','NZL','EGY','ZAF'])assert(easy.includes(iso),`${iso} should be easy`);
+for(const iso of ['TTO','VAT','MCO','KIR','TUV','MHL','VUT'])assert(hard.includes(iso),`${iso} should be hard`);
+
+assert(!app.includes('drawGuessMarker'));
+assert(!app.includes('answer-dot'));
+assert(!app.includes('answer-line'));
+assert.match(app,/function clearMarkers\(\)\{markers\.replaceChildren\(\)\}/);
+assert.match(app,/else\{streak=0;\$\('#distanceRow'\)\.classList\.remove\('hidden'\)/);
+assert.doesNotMatch(app,/project\(current\.lon|current\.lat\).*marker|drawMarkers/);
+
+const functions=app.match(/function updatedStats[\s\S]*?(?=\nfunction formatAverage)/)[0];
+const context={};vm.runInNewContext(`${functions};this.updatedStats=updatedStats`,context);
+let stats={completed:0,clicks:0,firstClick:0};
+stats=context.updatedStats(stats,1);stats=context.updatedStats(stats,2);stats=context.updatedStats(stats,3);
+assert.deepEqual({...stats},{completed:3,clicks:6,firstClick:1});
+assert.equal(stats.clicks/stats.completed,2);
+assert.equal(Math.round(stats.firstClick/stats.completed*100),33);
+assert.match(app,/localStorage\.setItem\(STATS_KEY,JSON\.stringify\(globalStats\)\)/);
+assert.match(app,/sessionStats=\{completed:0,clicks:0,firstClick:0\}/);
+assert.match(app,/Found in \$\{n\} \$\{n===1\?'click':'clicks'\}!/);
+assert.match(app,/Trouvé en \$\{n\} \$\{n===1\?'clic':'clics'\} !/);
+assert.match(app,/if\(answered\)renderResult\(\)/);
+assert.match(app,/canTap=!cancelled&&pointers\.size===1&&!gesture\.moved&&!gesture\.pinched&&!gesture\.suppressTap/);
+assert.match(app,/if\(country\)\{const\[x,y\]=clientToMap/);
+assert.doesNotMatch(app,/guessFromPoint/);
+console.log('Tous les tests GeoFact sont réussis.');
