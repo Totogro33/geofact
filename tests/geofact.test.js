@@ -85,9 +85,19 @@ assert.match(interfaceHtml,/id="streak"/);
 assert.match(app,/if\(success\)\{answered=true;streak\+\+/);
 assert.match(app,/else\{streak=0;/);
 
+// Norway uses its real, clickable geometry; only the other artificial markers remain.
+const norwayPaths=[...html.matchAll(/<path class="country-shape"[^>]*data-name="Norway"[^>]*data-iso="NOR"[^>]*d="([^"]+)"[^>]*>/g)];
+assert.equal(norwayPaths.length,1);
+assert.match(norwayPaths[0][1],/^M[\d., LZ]+ M/,'Norway should contain multiple geographic parts');
+assert.doesNotMatch(html,/<circle class="country-shape microstate"[^>]*data-iso="NOR"/);
+assert.match(app,/const country=ended\.target\.closest\('\.country-shape'\);if\(country\).*guessFromCountry\(country,x,y\)/);
+assert.match(app,/function guessFromCountry\(el,x,y\).*el\.dataset\.iso/);
+assert.match(app,/function nearestBoundaryDistanceKm\(lat,lon,c\)\{const path=svg\.querySelector\(`\.country-shape\[data-iso="\$\{c\.iso\}"\]`\).*path\.getTotalLength\(\).*path\.getPointAtLength\(d\)/);
+
 // Artificial microstate markers stay geographically precise and never overlap each other.
 const microstates=[...html.matchAll(/<circle class="country-shape microstate"[^>]*data-iso="([^"]+)"[^>]*cx="([^"]+)" cy="([^"]+)" r="([^"]+)"/g)].map(([,iso,cx,cy,r])=>({iso,cx:Number(cx),cy:Number(cy),r:Number(r)}));
-assert.equal(microstates.length,30);
+assert.equal(microstates.length,29);
+assert(!microstates.some(({iso})=>iso==='NOR'));
 for(const microstate of microstates)assert.equal(microstate.r,0.25,`${microstate.iso}: oversized artificial hit area`);
 for(let i=0;i<microstates.length;i++)for(let j=i+1;j<microstates.length;j++){
   const a=microstates[i],b=microstates[j];
