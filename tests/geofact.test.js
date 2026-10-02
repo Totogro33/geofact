@@ -19,7 +19,7 @@ assert(!app.includes('drawGuessMarker'));
 assert(!app.includes('answer-dot'));
 assert(!app.includes('answer-line'));
 assert.match(app,/function clearMarkers\(\)\{markers\.replaceChildren\(\)\}/);
-assert.match(app,/else\{streak=0;\$\('#distanceRow'\)\.classList\.remove\('hidden'\)/);
+assert.match(app,/else\{streak=0;(?:lastMissDistance=dist;)?\$\('#distanceRow'\)\.classList\.remove\('hidden'\)/);
 assert.doesNotMatch(app,/project\(current\.lon|current\.lat\).*marker|drawMarkers/);
 
 const functions=app.match(/function updatedStats[\s\S]*?(?=\nfunction formatAverage)/)[0];
@@ -37,4 +37,52 @@ assert.match(app,/if\(answered\)renderResult\(\)/);
 assert.match(app,/canTap=!cancelled&&pointers\.size===1&&!gesture\.moved&&!gesture\.pinched&&!gesture\.suppressTap/);
 assert.match(app,/if\(country\)\{const\[x,y\]=clientToMap/);
 assert.doesNotMatch(app,/guessFromPoint/);
+
+// Every country has complete, independently addressable bilingual display data.
+const capitals=JSON.parse(html.match(/const CAPITALS=(\{.*?\});\nconst EXTRA_FACTS=/s)[1]);
+assert.equal(Object.keys(capitals).length,195);
+assert.deepEqual(new Set(Object.keys(capitals)),new Set(countries.map(c=>c.iso)));
+for(const country of countries){
+  assert(country.name&&country.nameFr,`${country.iso}: missing bilingual country name`);
+  assert(country.fact_en&&country.fact_fr,`${country.iso}: missing bilingual fact`);
+  assert(capitals[country.iso].en&&capitals[country.iso].fr,`${country.iso}: missing bilingual capital`);
+}
+
+// Regression: Ukraine and other localized/special capital formulations use the requested language.
+assert.deepEqual(capitals.UKR,{en:'Kyiv',fr:'Kiev'});
+for(const [iso,en,fr] of [
+  ['AUT','Vienna','Vienne'],
+  ['CHN','Beijing','Pékin'],
+  ['CYP','Nicosia','Nicosie'],
+  ['GEO','Tbilisi','Tbilissi'],
+  ['PRT','Lisbon','Lisbonne'],
+  ['RUS','Moscow','Moscou'],
+  ['SYR','Damascus','Damas'],
+  ['UZB','Tashkent','Tachkent'],
+  ['NLD','Amsterdam (constitutional); the government is based in The Hague','Amsterdam (constitutionnelle) ; le gouvernement siège à La Haye'],
+  ['ZAF','Pretoria (executive), Cape Town (legislative), and Bloemfontein (judicial)','Pretoria (exécutif), Le Cap (législatif) et Bloemfontein (judiciaire)'],
+  ['NRU','No official capital; the government is based in Yaren','Aucune capitale officielle ; le gouvernement siège à Yaren']
+])assert.deepEqual(capitals[iso],{en,fr},`${iso}: incorrect localized capital`);
+
+// Language changes redraw every dynamic part without selecting another fact.
+assert.match(app,/if\(current\)\{renderRoundLabel\(\);\$\('#countryName'\)\.textContent=countryName\(current\);if\(answered\)renderResult\(\)/);
+assert.match(app,/capital:'Capital:'/);
+assert.match(app,/capital:'Capitale :'/);
+assert.match(app,/current\.capital\[lang\]/);
+assert.match(app,/fact\[lang\]/);
+assert.match(app,/function currentFact\(\)\{return current&&currentFactIndex!==null\?current\.facts\[currentFactIndex\]:null\}/);
+const applyLangSource=app.match(/function applyLang[\s\S]*?(?=\nfunction selectFact)/)[0];
+assert.doesNotMatch(applyLangSource,/selectFact\(/);
+assert.match(app,/else if\(lastMissDistance!==null\)renderDistance\(lastMissDistance\)/);
+assert.match(app,/languageLabel:'Langue'/);
+assert.match(app,/mapLabel:'Carte du monde interactive'/);
+
+// The duplicate record indicator is gone while the current streak remains intact.
+const interfaceHtml=html.slice(0,html.indexOf('<script>'));
+assert.doesNotMatch(interfaceHtml,/\brecord\b/i);
+assert.doesNotMatch(app,/\brecord\b|#best|wg-best/i);
+assert.match(interfaceHtml,/id="streak"/);
+assert.match(app,/if\(success\)\{answered=true;streak\+\+/);
+assert.match(app,/else\{streak=0;/);
+
 console.log('Tous les tests GeoFact sont réussis.');
