@@ -85,4 +85,13 @@ assert.match(interfaceHtml,/id="streak"/);
 assert.match(app,/if\(success\)\{answered=true;streak\+\+/);
 assert.match(app,/else\{streak=0;/);
 
+// Artificial microstate markers stay geographically precise and never overlap each other.
+const microstates=[...html.matchAll(/<circle class="country-shape microstate"[^>]*data-iso="([^"]+)"[^>]*cx="([^"]+)" cy="([^"]+)" r="([^"]+)"/g)].map(([,iso,cx,cy,r])=>({iso,cx:Number(cx),cy:Number(cy),r:Number(r)}));
+assert.equal(microstates.length,30);
+for(const microstate of microstates)assert.equal(microstate.r,0.25,`${microstate.iso}: oversized artificial hit area`);
+for(let i=0;i<microstates.length;i++)for(let j=i+1;j<microstates.length;j++){
+  const a=microstates[i],b=microstates[j];
+  assert(Math.hypot(a.cx-b.cx,a.cy-b.cy)>a.r+b.r,`${a.iso}/${b.iso}: overlapping artificial hit areas`);
+}
+
 console.log('Tous les tests GeoFact sont réussis.');
